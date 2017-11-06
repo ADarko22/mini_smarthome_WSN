@@ -17,15 +17,16 @@ W.r.t. project specification I've added:
       
       BLINKING the BLUE LED every 2s for 16s! 
       
-6) ACTIVATE/DEACTIVATE COMFORT BEDROOM
+6) ACTIVATE/DEACTIVATE COMFORT BEDROOM:
 
-      When ACTIVE GREED LED is ON otherwise OFF:
-      
+
+            When ACTIVE GREED LED is ON otherwise OFF:
+
             Sense the temperature every 300s and 
-            
+
             if temp < 19 & avg_temp (of previous 5 sensing) <= 15 START AIR-CONDITIONER:
                   start BLUE LED BLINKING every 2s
-                  
+
             if temp > 19 && avg_temp >= 23 STOP AIR-CONDITIONER:
                   turn off BLUE LED
                   
