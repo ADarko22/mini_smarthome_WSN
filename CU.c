@@ -5,11 +5,12 @@
 	Input	--> Number of CONSECUTIVE ( < 4sec) BUTTON PRESS
 	------------------------------------------------------------------
 	COMMANDS:
-		1) ACTIVATE/DEACTIVATE ALARM.
-		2) LOCK/UNLOCK GATE.
-		3) OPEN DOOR and GATE.
+		1) ACTIVATE/DEACTIVATE ALARM.			(Node1 & Node2)
+		2) LOCK/UNLOCK GATE.					(Node2)
+		3) OPEN DOOR and GATE.					(Node1 & Node2)
 		4) GET AVERAGE TEMPERATURE by Node1.
 		5) GET EXTERNAL LIGHT by Node2.
+		6) ACTIVATE/DEACTIVATE COMFORT BEDROOM
 
 	EXTENSIONS:
 		1.a) ACK Mechanism when BROACASTING the ALARM SWITCH:
@@ -19,7 +20,11 @@
 		3.a) ALARM INPUT BLOCK Mechanism:
 				When WAITING GATE and DOOR OPENING-CLOSING is not allowed
 				to give ACTIVATE ALARM command.
-				BLINKING the BLUE LED every 2s for 16s! 
+				BLINKING the BLUE LED every 2s for 16s!
+		6) A new mote, Node4, located in Bedroom to check temperature
+				and automatically start and stop the Air-Conditionating
+				System to regulate the room temperature!
+
 ------------------------------------------------------------------------*/
 #include "contiki.h"
 #include "stdio.h"
@@ -34,7 +39,7 @@
 #define	NOT_ACTIVE				0
 #define LOCKED					1
 #define UNLOCKED				0
-#define AVAILABLE_COMMANDS		5
+#define AVAILABLE_COMMANDS		6
 #define INPUT_INTERVAL			4
 #define ALARM_ACK_INTERVAL		5
 #define OPEN_CLOSE_INTERVAL		2
@@ -58,15 +63,21 @@
 #define GET_TEMP_SIZE			9
 #define GET_LIGHT				"GET_LIGHT"
 #define GET_LIGHT_SIZE			10
+#define START_COMFORT_BED		"COMFORT"
+#define START_COMFORT_BED_SIZE	8
+#define STOP_COMFORT_BED		"NO_COMFORT"
+#define STOP_COMFORT_BED_SIZE	11
 #define RECEIVED				1
 #define NOT_RECEIVED			0
 #define NODE1_RIME_ADDR			1
 #define NODE2_RIME_ADDR			2
+#define NODE4_RIME_ADDR			4
 
 //status variables
 static int alarm_status = NOT_ACTIVE;
 static int gate_status = LOCKED;
 static int opening_status = NOT_ACTIVE;
+static int comfort_status = NOT_ACTIVE;
 static int command = 0;
 
 static int alarm_ACK_Node1 = NOT_RECEIVED;
@@ -125,6 +136,24 @@ static void recv_runicast(struct runicast_conn *c, const linkaddr_t *from, uint8
 	/*Receiving External Light Reply*/
 
 		printf("External Light: %d\n", *(int*)packetbuf_dataptr());
+	
+	}else if(from->u8[0] == NODE4_RIME_ADDR){
+
+		if(strcmp(rcvd_msg, START_COMFORT_BED) == 0){
+
+			printf("COMFORT BEDROOM ACTIVATED\n");
+			comfort_status = ACTIVE;
+
+			print_avail_commands();
+		
+		}else if(strcmp(rcvd_msg, STOP_COMFORT_BED) == 0){
+
+			printf("COMFORT BEDROOM DEACTIVATED\n");
+			comfort_status = NOT_ACTIVE;
+
+			print_avail_commands();
+		}
+
 	}
 }
 
@@ -162,7 +191,7 @@ static const struct broadcast_callbacks broadcast_call = {broadcast_recv, broadc
 
 void print_avail_commands(){
 
-	printf("#########################\n###COMMANDS AVAILABLE:###\n");
+	printf("###########################\n####COMMANDS AVAILABLE:####\n");
 
 	if(opening_status == NOT_ACTIVE)
 		printf("\t1) %s ALARM\n", (alarm_status == ACTIVE)? "DEACTIVATE" : "ACTIVATE");
@@ -170,9 +199,14 @@ void print_avail_commands(){
 	if(alarm_status == NOT_ACTIVE){
 		
 		printf("\t2) %s GATE\n", (gate_status == LOCKED)? "UNLOCK" : "LOCK");
-		printf("\t3) OPEN GATE & DOOR\n\t4) GET AVG. TEMP\n\t5) GET EXT. LIGHT\n");
+
+		if(opening_status == NOT_ACTIVE)
+			printf("\t3) OPEN GATE & DOOR\n");
+		
+		printf("\t4) GET AVG. TEMP\n\t5) GET EXT. LIGHT\n");
 	}
-	printf("#########################\n");
+	printf("\t6) %s COMFORT BEDROOM\n", (comfort_status == ACTIVE)? "DEACTIVATE" : "ACTIVATE");
+	printf("###########################\n");
 }
 
 
@@ -220,11 +254,13 @@ void handle_gate_locking_command(){
 
 	if(gate_status == UNLOCKED){
 
+		printf("GATE LOCKED\n");
 		gate_status = LOCKED;
 		send_string(LOCK_GATE, LOCK_GATE_SIZE, NODE2_RIME_ADDR);
 
 	}else if(gate_status == LOCKED){
 
+		printf("GATE UNLOCKED\n");
 		gate_status = UNLOCKED;
 		send_string(UNLOCK_GATE, UNLOCK_GATE_SIZE, NODE2_RIME_ADDR);
 	}
@@ -257,6 +293,21 @@ void handle_get_temp_command(){
 void handle_get_light_command(){
 
 	send_string(GET_LIGHT, GET_LIGHT_SIZE, NODE2_RIME_ADDR);
+}
+
+/*Sending to Node4 the Start/Stop Comfort Bedroom Temperature Request*/
+void handle_comfort_bedroom_command(){
+
+	if(comfort_status == ACTIVE){
+
+		send_string(STOP_COMFORT_BED, STOP_COMFORT_BED_SIZE, NODE4_RIME_ADDR);
+		comfort_status = NOT_ACTIVE;
+
+	}else if(comfort_status == NOT_ACTIVE){
+
+		send_string(START_COMFORT_BED, START_COMFORT_BED_SIZE, NODE4_RIME_ADDR);
+		comfort_status = ACTIVE;
+	}
 }
 
 /*######################################################################*/
@@ -295,11 +346,11 @@ PROCESS_THREAD(input_reader_process, ev, data){
 		}else if(etimer_expired(&input_et) && count != 0){
 			/*count != 0 because conflict with alarm_et expiration! ??*/
 
-			if(alarm_status == ACTIVE && count != 1){
+			if(alarm_status == ACTIVE && (count != 1 && count != 6)){
 
 				printf("Command not allowed: ALARM IS ACTIVE!\n");
 
-			}else if(opening_status == ACTIVE && count ==1){
+			}else if(opening_status == ACTIVE && (count == 1 || count == 3)){
 
 				printf("Command not allowed: GATE and DOOR OPEN!\n");
 			
@@ -359,6 +410,10 @@ PROCESS_THREAD(command_handler_process, ev, data){
 				handle_get_light_command();
 				break;
 
+			case 6:
+				handle_comfort_bedroom_command();
+				break;
+
 			default:
 				break;
 		}
@@ -383,17 +438,22 @@ PROCESS_THREAD(wait_alarm_ack_process, ev, data){
 	PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&alarm_ack_et));
 
 	if(alarm_ACK_Node1 == NOT_RECEIVED)
-		printf("ALARM ACK from Node1 [%d:0] NOT RECEIVED!\n", NODE1_RIME_ADDR);
+		printf("ALARM ACK from Node1 [%d:0] not received!\n", NODE1_RIME_ADDR);
 
 	if(alarm_ACK_Node2 == NOT_RECEIVED)
-		printf("ALARM ACK from Node2 [%d:0] NOT RECEIVED!\n", NODE2_RIME_ADDR);
+		printf("ALARM ACK from Node2 [%d:0] not received!\n", NODE2_RIME_ADDR);
 
 	if(alarm_status == ACTIVE){
 
-		if(alarm_ACK_Node1 == NOT_RECEIVED || alarm_ACK_Node2 == NOT_RECEIVED)
+		if(alarm_ACK_Node1 == NOT_RECEIVED || alarm_ACK_Node2 == NOT_RECEIVED){
+		
 			leds_on(LEDS_RED);
-		else
+		
+		}else{
+
+			printf("ALARM ACTIVATED CORRECTLY\n");
 			leds_on(LEDS_GREEN);
+		}
 	}
 
 	PROCESS_END();

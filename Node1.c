@@ -47,6 +47,7 @@
 #define GET_TEMP_SIZE			9
 #define UC_RIME_ADDR			3
 #define NODE2_RIME_ADDR			2
+#define NODE4_RIME_ADDR			4
 
 
 //status variables
@@ -67,7 +68,7 @@ static struct broadcast_conn broadcast;
 //to handle communication with the CU & receive commands
 PROCESS(listening_process, "Listening Process");
 
-//to handle the garden lights command
+//to handle the garden lights command reading
 PROCESS(input_reader_process, "User-Input Reader Process");
 
 //to handle activation/deactivation alarm request
@@ -120,7 +121,7 @@ void restore_led_status(){
 /*---------------------------HANDLER FUNCTIONS--------------------------*/
 
 /*Saving LEDS status & start Alarm Blink Process*/
-void handle_alarm_request(const char* rcvd_msg, const linkaddr_t *from){
+void handle_alarm_request(const char* rcvd_msg){
 
 	if(strcmp(rcvd_msg, ALARM_ON) == 0){
 
@@ -170,6 +171,7 @@ void handle_temp_request(){
 
 	send_int(avg_temp, UC_RIME_ADDR);
 }
+
 /*----------------------------------RIME--------------------------------*/
 
 //RUNICAST
@@ -210,7 +212,7 @@ static void broadcast_recv(struct broadcast_conn *c, const linkaddr_t *from){
 	if(strcmp(rcvd_msg, ALARM_ON) == 0 || strcmp(rcvd_msg, ALARM_OFF) == 0)
 	/*Receiving Activate/Deaactivate Alarm Request*/	
 		
-		handle_alarm_request(rcvd_msg, from);
+		handle_alarm_request(rcvd_msg);
 
 	else if(strcmp(rcvd_msg, OPEN_GATE_DOOR) == 0)
 	/*Receiving Open Gate e Door Request*/
@@ -254,7 +256,7 @@ PROCESS_THREAD(input_reader_process, ev, data){
 	(garden_light_status == OFF) ? leds_on(LEDS_RED) : leds_on(LEDS_GREEN);
 
 	while(1){
-		
+
 		PROCESS_WAIT_EVENT_UNTIL(ev == sensors_event && data == &button_sensor);
 
 		if(garden_light_status == OFF){
@@ -364,6 +366,7 @@ PROCESS_THREAD(temperature_sensing_process, ev, data){
 		PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&temp_et));
 
 		if(last_temp_values == NULL){
+			/*initializing last 5 temperature values*/
 
 			last_temp_values = malloc(5*sizeof(int));
 
@@ -371,6 +374,7 @@ PROCESS_THREAD(temperature_sensing_process, ev, data){
 				last_temp_values[i] = (((sht11_sensor.value(SHT11_SENSOR_TEMP)/10) - 396)/10);
 		}
 		else{
+			/*udating last 5 temperature values*/
 
 			for(i=0; i<4; i++)
 				last_temp_values[i] = last_temp_values[i+1];

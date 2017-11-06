@@ -52,6 +52,7 @@
 #define GET_LIGHT_SIZE			10
 #define UC_RIME_ADDR			3
 #define NODE1_RIME_ADDR			1
+#define NODE4_RIME_ADDR			4
 
 
 //status variables
@@ -100,7 +101,7 @@ void send_int(int msg, int rime_addr){
 /*---------------------------HANDLER FUNCTIONS--------------------------*/
 
 /*Saving LEDS status & start Alarm Blink Process*/
-void handle_alarm_request(const char* rcvd_msg, const linkaddr_t *from){
+void handle_alarm_request(const char* rcvd_msg){
 
 	if(strcmp(rcvd_msg, ALARM_ON) == 0){
 
@@ -218,7 +219,7 @@ static void broadcast_recv(struct broadcast_conn *c, const linkaddr_t *from){
 	if(strcmp(rcvd_msg, ALARM_ON) == 0 || strcmp(rcvd_msg, ALARM_OFF) == 0)
 	/*Receiving Activate/Deaactivate Alarm Request*/	
 
-		handle_alarm_request(rcvd_msg, from);
+		handle_alarm_request(rcvd_msg);
 
 	else if(strcmp(rcvd_msg, OPEN_GATE_DOOR) == 0)
 	/*Receiving Open Gate e Door Request*/
